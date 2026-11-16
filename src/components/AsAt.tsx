@@ -131,13 +131,13 @@ export function AsAt({ bundle }: { bundle: EntityBundle }) {
           <div key={r.id + (delta ?? '')} className={`ledger-row${ev?.mark === 'S' ? ' sim' : ''}`}>
             <div className="ledger-line grid12" style={{ cursor: 'default' }}>
               <span className="ledger-margin">
-                <span className="mono">{delta ? <span className={`delta ${delta}`}>{delta === 'add' ? '+' : '−'}</span> : null}{fmtDate(r.start)}</span>
+                <span className="mono">{delta ? <span className={`delta ${delta}`}>{delta === 'add' ? '+' : '−'}</span> : null}{r.dateBasis === 'notified' ? 'Notified ' : ''}{fmtDate(r.start)}</span>
                 {ev ? <Mark mark={ev.mark} /> : null}
               </span>
               <span className="ledger-claim">
                 {outward ? `${r.label} of ${other?.name}` : `${other?.name}: ${r.label}`}
                 <span className="secondary-line">
-                  {r.end ? `Ended ${fmtDate(r.end)}` : 'No end date on record'} · <a className="mono" href={`/e/${ev?.entityId ?? id}#${ev?.id}`}>{ev?.id}</a>
+                  {r.end ? `${r.dateBasis === 'notified' ? 'Cessation notified' : 'Ended'} ${fmtDate(r.end)}` : 'No end date on record'} · <a className="mono" href={`/e/${ev?.entityId ?? id}#${ev?.id}`}>{ev?.id}</a>
                   {late ? ` · In force on this date, but not on the register until ${fmtDate(ev!.recorded)}.` : ''}
                 </span>
               </span>
@@ -147,7 +147,7 @@ export function AsAt({ bundle }: { bundle: EntityBundle }) {
           </div>
         );
       })}
-      {bundle.limits.length ? <p className="limit-note">{bundle.limits[0]}</p> : null}
+      {bundle.limits.map((l) => <p className="limit-note" key={l}>{l}</p>)}
     </div>
   );
 }

@@ -4,11 +4,16 @@ import 'server-only';
 //  - company-level data may be cached for at most 60 minutes;
 //  - officer and PSC data is fetched with no-store and never written anywhere;
 //  - officers expose name, role, appointed and resigned dates only.
-// UNTESTED against the live API in this build: it needs COMPANIES_HOUSE_API_KEY and
-// network access to api.company-information.service.gov.uk.
+// Field semantics, provenance and pagination rules live in ./ch-map (unit tested).
+// UNTESTED against the live API: needs COMPANIES_HOUSE_API_KEY and network access
+// to api.company-information.service.gov.uk.
 
 import type { Entity, EntityBundle, Evidence, Relationship, Source } from '../types';
 import type { SearchCandidate } from './demo';
+import {
+  collectPages, coverageNote, filingDates, MAX_PAGES, PAGE_SIZE, provenanceFromDate, pscDates, totalFrom,
+  type Coverage, type Provenance,
+} from './ch-map';
 
 const BASE = 'https://api.company-information.service.gov.uk';
 const PUBLIC = 'https://find-and-update.company-information.service.gov.uk';
@@ -36,8 +41,9 @@ export function liveAvailable() {
 }
 
 type Cache = 'company' | 'personal';
+type Body = Record<string, any>;
 
-async function get<T>(path: string, cache: Cache): Promise<{ data: T; fetchedAt: string } | null> {
+async function get(path: string, cache: Cache): Promise<{ data: Body; prov: Provenance } | null> {
   const a = auth();
   if (!a) return null;
   const init: RequestInit & { next?: { revalidate: number } } =
@@ -46,20 +52,18 @@ async function get<T>(path: string, cache: Cache): Promise<{ data: T; fetchedAt:
   if (res.status === 429) throw new RegisterBusyError(Number(res.headers.get('retry-after') ?? 60));
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Companies House ${res.status} on ${path}`);
-  // The Date header reflects when the response was produced, so a cached company
-  // response keeps its original time and can be marked C with its age.
-  const fetchedAt = new Date(res.headers.get('date') ?? Date.now()).toISOString();
-  return { data: (await res.json()) as T, fetchedAt };
+  return { data: (await res.json()) as Body, prov: provenanceFromDate(res.headers.get('date'), new Date().toISOString()) };
 }
 
 const addr = (a?: Record<string, string>) =>
   a ? [a.premises, a.address_line_1, a.address_line_2, a.locality, a.postal_code].filter(Boolean).join(', ') : undefined;
 
 export async function searchCompanies(q: string): Promise<SearchCandidate[]> {
-  const r = await get<{ items?: Array<Record<string, any>> }>(`/search/companies?q=${encodeURIComponent(q)}&items_per_page=15`, 'company');
+  const r = await get(`/search/companies?q=${encodeURIComponent(q)}&items_per_page=15`, 'company');
+  if (!r) return [];
   const query = q.trim().toUpperCase();
   const words = q.trim().toLowerCase().split(/\s+/);
-  return (r?.data.items ?? []).map((it) => {
+  return ((r.data.items as Body[]) ?? []).map((it) => {
     const exact = it.company_number === query;
     const name: string = it.title ?? '';
     const hits = words.filter((w) => name.toLowerCase().includes(w)).length;
@@ -72,18 +76,31 @@ export async function searchCompanies(q: string): Promise<SearchCandidate[]> {
       postcodeDistrict: it.address?.postal_code?.split(' ')[0],
       matchReason: exact ? 'Exact company number' : `Name: ${hits} of ${words.length} word${words.length === 1 ? '' : 's'}`,
       exact,
-      mark: 'L' as const,
+      mark: r.prov.mark,
+      ageMinutes: r.prov.mark === 'C' ? r.prov.ageMinutes : undefined,
     };
   });
 }
 
+/** Paged list fetch. Returns items, coverage and the provenance of the first page. */
+async function list(path: string, cache: Cache, maxPages: number, totalKeys: string[]) {
+  let prov: Provenance | null = null;
+  const { items, coverage } = await collectPages<Body>(async (start) => {
+    const sep = path.includes('?') ? '&' : '?';
+    const r = await get(`${path}${sep}items_per_page=${PAGE_SIZE}&start_index=${start}`, cache);
+    if (!r) return null;
+    prov ??= r.prov;
+    return { items: (r.data.items as Body[]) ?? [], total: totalFrom(r.data, ...totalKeys) };
+  }, maxPages);
+  return { items, coverage, prov: prov as Provenance | null };
+}
+
 export async function getLiveBundle(number: string): Promise<EntityBundle | null> {
-  const profile = await get<Record<string, any>>(`/company/${number}`, 'company');
+  const profile = await get(`/company/${number}`, 'company');
   if (!profile) return null;
   const p = profile.data;
   const clock = new Date().toISOString();
-  const ageMin = (Date.parse(clock) - Date.parse(profile.fetchedAt)) / 60000;
-  const companyMark = ageMin > 1 ? 'C' : 'L';
+  const companyMark = profile.prov.mark;
 
   const entity: Entity = {
     id: number,
@@ -101,63 +118,84 @@ export async function getLiveBundle(number: string): Promise<EntityBundle | null
 
   const evidence: Evidence[] = [];
   let n = 1;
-  const push = (e: Omit<Evidence, 'id' | 'entityId' | 'match' | 'status'> & Partial<Evidence>) =>
-    evidence.push({ id: `L-${String(n++).padStart(3, '0')}`, entityId: number, match: 'exact-id', status: 'current', ...e } as Evidence);
-  const base = { sourceId: 'ch', retrieved: profile.fetchedAt, mark: companyMark } as const;
-  push({ ...base, factKey: 'name', claim: 'Registered name', value: p.company_name, folio: `CH·profile·${number}`, url: `${PUBLIC}/company/${number}` });
-  push({ ...base, factKey: 'status', claim: 'Company status', value: p.company_status, folio: `CH·profile·${number}`, url: `${PUBLIC}/company/${number}` });
+  const nextId = () => `L-${String(n++).padStart(3, '0')}`;
+  const push = (e: Omit<Evidence, 'id' | 'entityId' | 'match' | 'status'> & Partial<Evidence>) => {
+    const id = nextId();
+    evidence.push({ id, entityId: number, match: 'exact-id', status: 'current', ...e } as Evidence);
+    return id;
+  };
+  const base = { sourceId: 'ch', retrieved: profile.prov.fetchedAt, mark: companyMark } as const;
+  const profileUrl = `${PUBLIC}/company/${number}`;
+  push({ ...base, factKey: 'name', claim: 'Registered name', value: p.company_name, folio: `CH·profile·${number}`, url: profileUrl });
+  push({ ...base, factKey: 'status', claim: 'Company status', value: p.company_status, folio: `CH·profile·${number}`, url: profileUrl });
   if (p.date_of_creation)
-    push({ ...base, factKey: 'incorporated', claim: 'Incorporated', value: p.date_of_creation, effective: p.date_of_creation, folio: `CH·profile·${number}`, url: `${PUBLIC}/company/${number}` });
+    push({ ...base, factKey: 'incorporated', claim: 'Incorporated', value: p.date_of_creation, effective: p.date_of_creation, folio: `CH·profile·${number}`, url: profileUrl });
   if (entity.registeredOffice)
-    push({ ...base, factKey: 'office', claim: 'Registered office', value: entity.registeredOffice, folio: `CH·profile·${number}`, url: `${PUBLIC}/company/${number}` });
+    push({ ...base, factKey: 'office', claim: 'Registered office', value: entity.registeredOffice, folio: `CH·profile·${number}`, url: profileUrl });
   if (p.accounts?.next_due)
-    push({ ...base, factKey: 'accounts-due', claim: 'Next accounts due', value: p.accounts.next_due, folio: `CH·profile·${number}`, url: `${PUBLIC}/company/${number}` });
+    push({ ...base, factKey: 'accounts-due', claim: 'Next accounts due', value: p.accounts.next_due, folio: `CH·profile·${number}`, url: profileUrl });
 
   const entities: Record<string, Entity> = { [number]: entity };
   const relationships: Relationship[] = [];
 
-  // Officers and PSCs: fetched with no-store, held only for this response.
+  // Officers and PSCs: no-store, bounded pagination, held only for this response.
   const [officers, pscs, filings] = await Promise.all([
-    get<{ items?: Array<Record<string, any>> }>(`/company/${number}/officers?items_per_page=50`, 'personal'),
-    get<{ items?: Array<Record<string, any>> }>(`/company/${number}/persons-with-significant-control?items_per_page=50`, 'personal'),
-    get<{ items?: Array<Record<string, any>> }>(`/company/${number}/filing-history?items_per_page=25`, 'company'),
+    list(`/company/${number}/officers`, 'personal', MAX_PAGES.officers, ['total_results']),
+    list(`/company/${number}/persons-with-significant-control`, 'personal', MAX_PAGES.pscs, ['total_results']),
+    list(`/company/${number}/filing-history`, 'company', MAX_PAGES.filings, ['total_count']),
   ]);
 
-  officers?.data.items?.forEach((o, i) => {
+  officers.items.forEach((o, i) => {
     const pid = `O-${i + 1}`;
-    entities[pid] = { id: pid, kind: o.officer_role?.startsWith('corporate') ? 'company' : 'person', name: o.name, mark: 'L' };
-    const evId = `L-${String(n).padStart(3, '0')}`;
-    push({
-      sourceId: 'ch', retrieved: officers.fetchedAt, mark: 'L', factKey: `officer:${pid}`,
-      claim: o.resigned_on ? 'Officer (resigned)' : 'Officer appointed', value: `${o.name}, ${String(o.officer_role).replace(/-/g, ' ')}`,
+    entities[pid] = { id: pid, kind: String(o.officer_role ?? '').startsWith('corporate') ? 'company' : 'person', name: o.name, mark: 'L' };
+    const role = String(o.officer_role ?? 'officer').replace(/-/g, ' ');
+    const evId = push({
+      sourceId: 'ch', retrieved: officers.prov?.fetchedAt ?? clock, mark: officers.prov?.mark ?? 'L', factKey: `officer:${pid}`,
+      claim: o.resigned_on ? 'Officer (resigned)' : 'Officer appointed', value: `${o.name}, ${role}`,
       effective: o.appointed_on, status: o.resigned_on ? 'historical' : 'current',
       folio: `CH·officers·${number}·${i + 1}`, url: `${PUBLIC}/company/${number}/officers`,
     });
-    relationships.push({ id: `R-O${i + 1}`, from: pid, to: number, role: o.officer_role === 'secretary' ? 'secretary' : 'director', label: String(o.officer_role).replace(/-/g, ' '), start: o.appointed_on, end: o.resigned_on, evidenceIds: [evId] });
+    relationships.push({
+      id: `R-O${i + 1}`, from: pid, to: number, role: o.officer_role === 'secretary' ? 'secretary' : 'director',
+      label: role, start: o.appointed_on, end: o.resigned_on, dateBasis: 'effective', evidenceIds: [evId],
+    });
   });
 
-  pscs?.data.items?.forEach((s, i) => {
+  pscs.items.forEach((s, i) => {
     const pid = `P-${i + 1}`;
-    const corporate = String(s.kind ?? '').includes('corporate');
+    const corporate = String(s.kind ?? '').includes('corporate') || String(s.kind ?? '').includes('legal-person');
     entities[pid] = { id: pid, kind: corporate ? 'company' : 'person', name: s.name, mark: 'L' };
-    const evId = `L-${String(n).padStart(3, '0')}`;
-    const control = (s.natures_of_control ?? []).join(', ').replace(/-/g, ' ');
-    push({
-      sourceId: 'ch', retrieved: pscs.fetchedAt, mark: 'L', factKey: `psc:${pid}`,
+    const d = pscDates(s);
+    const control = ((s.natures_of_control as string[]) ?? []).join(', ').replace(/-/g, ' ');
+    const evId = push({
+      sourceId: 'ch', retrieved: pscs.prov?.fetchedAt ?? clock, mark: pscs.prov?.mark ?? 'L', factKey: `psc:${pid}`,
       claim: s.ceased_on ? 'Person with significant control (ceased)' : 'Person with significant control',
-      value: `${s.name}${control ? ': ' + control : ''}`, effective: s.notified_on, status: s.ceased_on ? 'historical' : 'current',
+      value: `${s.name}${control ? ': ' + control : ''}`,
+      effective: d.effective, recorded: d.recorded, status: s.ceased_on ? 'historical' : 'current',
+      excerpt: `Notified to Companies House on ${d.recorded ?? 'an unstated date'}${d.end ? `; cessation notified on ${d.end}` : ''}. The API does not give the date control began or ended.`,
       folio: `CH·psc·${number}·${i + 1}`, url: `${PUBLIC}/company/${number}/persons-with-significant-control`,
     });
-    relationships.push({ id: `R-P${i + 1}`, from: pid, to: number, role: corporate ? 'parent' : 'psc', label: 'PSC', start: s.notified_on, end: s.ceased_on, evidenceIds: [evId] });
+    relationships.push({
+      id: `R-P${i + 1}`, from: pid, to: number, role: corporate ? 'parent' : 'psc', label: 'PSC',
+      start: d.start, end: d.end, dateBasis: d.dateBasis, evidenceIds: [evId],
+    });
   });
 
-  filings?.data.items?.forEach((f, i) => {
+  filings.items.forEach((f, i) => {
+    const d = filingDates(f);
     push({
-      sourceId: 'ch', retrieved: filings.fetchedAt, mark: companyMark, factKey: `filing:${f.transaction_id ?? i}`,
-      claim: `Filing: ${f.type}`, value: String(f.description ?? '').replace(/-/g, ' '), effective: f.action_date ?? f.date, recorded: f.date,
+      sourceId: 'ch', retrieved: filings.prov?.fetchedAt ?? clock, mark: filings.prov?.mark ?? companyMark, factKey: `filing:${f.transaction_id ?? i}`,
+      claim: `Filing: ${f.type}`, value: String(f.description ?? '').replace(/-/g, ' '), effective: d.effective, recorded: d.recorded,
       status: 'historical', folio: `CH·filing·${f.transaction_id ?? i}`, url: `${PUBLIC}/company/${number}/filing-history`,
     });
   });
+
+  const coverage: Record<string, Coverage> = { officers: officers.coverage, pscs: pscs.coverage, filings: filings.coverage };
+  const notes = [
+    coverageNote('Officers', officers.coverage),
+    coverageNote('Persons with significant control', pscs.coverage),
+    filings.coverage.complete ? null : `Filings: the latest ${filings.coverage.retrieved}${filings.coverage.total !== null ? ` of ${filings.coverage.total}` : ''} are shown. Earlier filings are not retrieved.`,
+  ].filter(Boolean) as string[];
 
   return {
     entity,
@@ -168,7 +206,10 @@ export async function getLiveBundle(number: string): Promise<EntityBundle | null
     sources: chSources,
     isDemo: false,
     clock,
+    coverage,
     limits: [
+      ...notes,
+      'Dates for persons with significant control are the dates Companies House was notified, not the dates control began or ended, so the timeline places them by notification.',
       'Registered office and name history are not reconstructed for live companies: the API returns the current address only, and past changes appear as filing descriptions.',
       'Officers show name, role and dates only. Officer data is fetched for this page and not stored.',
     ],

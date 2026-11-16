@@ -100,7 +100,7 @@ export function EvidenceLedger({ bundle, rows, showFilters = true }: { bundle: E
             <div key={e.id} id={e.id} className={`ledger-row${e.mark === 'S' ? ' sim' : ''}`}>
               <button type="button" className="ledger-line grid12" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : e.id)}>
                 <span className="ledger-margin">
-                  <span className="mono">{fmtDate(e.effective)}</span>
+                  <span className="mono">{e.effective ? fmtDate(e.effective) : e.recorded ? <span className="quiet">Rec. {fmtDate(e.recorded)}</span> : '—'}</span>
                   <span><Mark mark={e.mark} extra={markExtra(e, bundle.clock)} />{contra ? <span className="contra-mark"> contra</span> : null}</span>
                 </span>
                 <span className="ledger-claim">

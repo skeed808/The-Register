@@ -12,11 +12,24 @@ import { counters } from './db/schema';
 export const LIMITS = {
   /** Live Companies House lookups per IP hash per 5 minutes. */
   searchPer5Min: 40,
-  /** Free-form assistant questions per session. */
+  /** Free-form assistant questions per session (soft: a cookie can be cleared). */
   askPerSession: 10,
+  /** Free-form questions per IP hash per UTC day, so clearing cookies does not reset the allowance. */
+  askPerIpPerDay: 30,
   /** Hard global cap on model calls per UTC day. */
   askGlobalPerDay: 300,
 };
+
+/**
+ * In production, in-memory counters reset per instance and on cold start, so they are
+ * not a real safeguard. Paid model calls fail closed unless a database is configured
+ * or ALLOW_MEMORY_RATE_LIMITS=1 is set deliberately.
+ */
+export function durableLimitsAvailable() {
+  if (process.env.DATABASE_URL) return true;
+  if (process.env.NODE_ENV !== 'production') return true;
+  return process.env.ALLOW_MEMORY_RATE_LIMITS === '1';
+}
 
 const memory = new Map<string, { n: number; expires: number }>();
 

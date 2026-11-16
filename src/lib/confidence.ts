@@ -32,11 +32,14 @@ const MATCH_LABEL: Record<MatchStrength, string> = {
 };
 export const labels = { reliability: RELIABILITY_LABEL, match: MATCH_LABEL };
 
+const AUTHORITATIVE = new Set<Reliability>(['statutory', 'official']);
+const GOOD_MATCH = new Set<MatchStrength>(['exact-id', 'attribute']);
+
 function originOf(b: EntityBundle, sourceId: string) {
   return b.sources[sourceId]?.mirrorOf ?? sourceId;
 }
 
-function freshnessOf(b: EntityBundle, e: Evidence): Freshness {
+export function freshnessOf(b: EntityBundle, e: Evidence): Freshness {
   const src = b.sources[e.sourceId];
   const ageH = (Date.parse(b.clock) - Date.parse(e.retrieved)) / 36e5;
   if (!src || ageH <= src.freshHours) return 'Fresh';
@@ -54,9 +57,17 @@ export function assess(b: EntityBundle, e: Evidence, explainedFactKeys: Set<stri
   const agree = peers.filter((x) => normalise(x.value) === normalise(e.value));
   const disagree = peers.filter((x) => normalise(x.value) !== normalise(e.value));
   const origins = new Set(agree.map((x) => originOf(b, x.sourceId))).size;
-  const statutoryOrOfficialOrigins = new Set(
+
+  // Independent authoritative corroboration counts only rows that themselves
+  // identify the entity well and are not stale. A mirror counts as its origin.
+  const qualifyingOrigins = new Set(
     agree
-      .filter((x) => ['statutory', 'official'].includes(b.sources[x.sourceId]?.reliability ?? ''))
+      .filter(
+        (x) =>
+          AUTHORITATIVE.has(b.sources[x.sourceId]?.reliability ?? 'secondary') &&
+          GOOD_MATCH.has(x.match) &&
+          freshnessOf(b, x) !== 'Stale',
+      )
       .map((x) => originOf(b, x.sourceId)),
   ).size;
 
@@ -68,15 +79,8 @@ export function assess(b: EntityBundle, e: Evidence, explainedFactKeys: Set<stri
   }
   const freshness = freshnessOf(b, e);
   const match = e.match;
-  const strongSource = reliability === 'statutory' || reliability === 'official';
 
-  const factors = {
-    reliability,
-    match,
-    origins,
-    freshness,
-    conflicts,
-  };
+  const factors = { reliability, match, origins, freshness, conflicts };
   const reasons = [
     `${RELIABILITY_LABEL[reliability]} source`,
     MATCH_LABEL[match],
@@ -85,22 +89,23 @@ export function assess(b: EntityBundle, e: Evidence, explainedFactKeys: Set<stri
     conflicts === 'None' ? 'no conflicts' : conflicts === 'Minor' ? 'minor conflict' : 'material unresolved conflict',
   ];
 
-  // Rule 1
+  // Rule 1: ambiguity, an unresolved material conflict or no evidence.
   if (match === 'ambiguous' || conflicts === 'Material unresolved') {
     return { band: 'Unresolved', rule: 1, ...factors, reasons };
   }
-  // Rule 2 (a Minor conflict caps at Probable, so Strong needs None)
-  if (
-    conflicts === 'None' &&
-    ((match === 'exact-id' && reliability === 'statutory' && freshness === 'Fresh') || statutoryOrOfficialOrigins >= 2)
-  ) {
+  // Rule 2: Strong. Both routes require no conflict and fresh evidence.
+  //   a) an exact identifier from a statutory source, or
+  //   b) a good match plus two or more independent, non-stale authoritative origins.
+  const routeA = match === 'exact-id' && reliability === 'statutory';
+  const routeB = GOOD_MATCH.has(match) && qualifyingOrigins >= 2;
+  if (conflicts === 'None' && freshness === 'Fresh' && (routeA || routeB)) {
     return { band: 'Strong', rule: 2, ...factors, reasons };
   }
-  // Rule 3
-  if (strongSource && (match === 'exact-id' || match === 'attribute') && freshness !== 'Stale') {
+  // Rule 3: Probable.
+  if (AUTHORITATIVE.has(reliability) && GOOD_MATCH.has(match) && freshness !== 'Stale') {
     return { band: 'Probable', rule: 3, ...factors, reasons };
   }
-  // Rule 4
+  // Rule 4: Possible.
   return { band: 'Possible', rule: 4, ...factors, reasons };
 }
 

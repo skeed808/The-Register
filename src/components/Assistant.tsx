@@ -11,6 +11,7 @@ interface Turn { question: string; answer?: ValidatedAnswer; note?: string; limi
 const PREVIEW = process.env.NEXT_PUBLIC_PREVIEW === '1';
 
 export function Assistant({ bundle }: { bundle: EntityBundle }) {
+  const names = Object.fromEntries(Object.values(bundle.entities).map((e) => [e.id, e.name]));
   const [turns, setTurns] = useState<Turn[]>([]);
   const [lit, setLit] = useState<string | null>(null);
   const [q, setQ] = useState('');
@@ -20,7 +21,7 @@ export function Assistant({ bundle }: { bundle: EntityBundle }) {
   function askScripted(id: string) {
     const s = scripted.find((x) => x.id === id)!;
     // Scripted answers take the same validation path as model answers.
-    setTurns((t) => [{ question: s.question, answer: validate(s.draft, bundle.evidence), note: s.note, scripted: true }, ...t]);
+    setTurns((t) => [{ question: s.question, answer: validate(s.draft, bundle.evidence, names), note: s.note, scripted: true }, ...t]);
   }
 
   async function askFree(question: string) {
@@ -71,7 +72,7 @@ export function Assistant({ bundle }: { bundle: EntityBundle }) {
         </form>
         <p className="checkline" style={{ margin: 0 }}>
           {remaining !== null ? `${remaining} of 10 free-form questions left in this session. ` : ''}
-          Every sentence must cite evidence in this case, and each citation is checked before anything is shown.
+          Each sentence must cite evidence in this case. Its quoted values, dates and names must appear in the rows it cites, or it is removed. The check does not judge meaning, so read the cited rows.
         </p>
         <div className="suggest">
           {scripted.map((s) => <button key={s.id} type="button" onClick={() => askScripted(s.id)}>{s.question}</button>)}

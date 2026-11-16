@@ -72,6 +72,8 @@ export interface Relationship {
   label: string;
   start?: string;
   end?: string;
+  /** 'notified' when start and end are dates Companies House was notified, not dates control changed. */
+  dateBasis?: 'effective' | 'notified';
   evidenceIds: string[];
 }
 
@@ -108,8 +110,10 @@ export interface EntityBundle {
   isDemo: boolean;
   /** Reference clock for freshness: fixed for the demo, now for live. */
   clock: string;
-  /** Plain statements of what this bundle cannot reconstruct. */
+  /** Plain statements of what this bundle cannot reconstruct or did not retrieve. */
   limits: string[];
+  /** Per-list retrieval coverage for live bundles (officers, pscs, filings). */
+  coverage?: Record<string, { retrieved: number; total: number | null; complete: boolean }>;
 }
 
 export interface CaseSummary {

@@ -53,7 +53,7 @@ export function SearchClient() {
   const row = (c: SearchCandidate) => (
     <div className={`ledger-row${c.mark === 'S' ? ' sim' : ''}`} key={c.mark + c.id}>
       <Link className="ledger-line grid12" style={{ textDecoration: 'none' }} href={`/e/${c.id}`}>
-        <span className="ledger-margin"><span className="mono">{c.number}</span><Mark mark={c.mark} /></span>
+        <span className="ledger-margin"><span className="mono">{c.number}</span><Mark mark={c.mark} extra={c.mark === 'C' ? (c.ageMinutes == null ? 'age unknown' : `${c.ageMinutes} min`) : undefined} /></span>
         <span className="ledger-claim">
           {c.name}
           <span className="secondary-line">{c.matchReason}</span>

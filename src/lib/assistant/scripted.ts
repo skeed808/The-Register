@@ -15,7 +15,7 @@ export const scripted: ScriptedQuestion[] = [
     id: 'q-ownership',
     question: 'What changed in the ownership of Velloch Precision?',
     draft: [
-      { text: 'Hethermoor Trading LLP had significant control of Velloch Precision Ltd from 10 Jan 2018 until 3 Jun 2026.', citations: ['E-025'], quotes: ['Hethermoor Trading LLP', 'Ceased on 3 June 2026'] },
+      { text: 'Hethermoor Trading LLP had significant control of Velloch Precision Ltd from 10 Jan 2018 until 3 Jun 2026.', citations: ['E-025'], quotes: ['Hethermoor Trading LLP', 'ceased on 3 June 2026'] },
       { text: 'Quarrow Velloch Holdings Ltd was notified as its person with significant control from 3 Jun 2026; the change reached the register on 19 Jun 2026.', citations: ['E-026'], quotes: ['Quarrow Velloch Holdings Ltd'] },
       { text: 'A news report dated 24 Jun 2026 describes the same change as an internal reorganisation.', citations: ['E-028'], quotes: ['internal reorganisation'] },
       { text: 'The company website, captured on 14 Oct 2026, still names Hethermoor Trading LLP as the parent, so the sources differ.', citations: ['E-027'], quotes: ['Hethermoor Trading'] },
@@ -33,11 +33,11 @@ export const scripted: ScriptedQuestion[] = [
   {
     id: 'q-control',
     question: 'Which companies does Quarrow Velloch Holdings control?',
-    note: 'This answer includes one planted sentence with a citation that is not in the case, to show the check removing it.',
+    note: 'This answer includes one planted sentence citing evidence that is not in the case, to show the check removing it.',
     draft: [
       { text: 'Quarrow Velloch Holdings Ltd has had significant control of QV Estates (Severn) Ltd since 12 Jul 2021.', citations: ['E-045'], quotes: ['Quarrow Velloch Holdings Ltd'] },
       { text: 'It has had significant control of Velloch Precision Ltd since 3 Jun 2026.', citations: ['E-026'], quotes: ['Quarrow Velloch Holdings Ltd'] },
-      { text: 'It also controls a marine engineering business in Cornwall.', citations: ['E-099'] },
+      { text: 'It also controls a marine engineering business in Cornwall.', citations: ['E-099'], quotes: ['marine engineering'] },
     ],
   },
   {
@@ -46,7 +46,7 @@ export const scripted: ScriptedQuestion[] = [
     draft: [
       { text: 'Teodor Quill-Hartley was a director of Tarnwick Marine Services Ltd from 1 Mar 2016 and was in office when it was dissolved on 13 Feb 2024.', citations: ['E-066', 'E-061'], quotes: ['Teodor Quill-Hartley', 'Dissolved'] },
       { text: 'He has been a director of Velloch Precision Ltd since 18 Sep 2017.', citations: ['E-030'], quotes: ['Teodor Quill-Hartley'] },
-      { text: 'The evidence records these appointments only; it says nothing about why the company was dissolved.', citations: ['E-062'] },
+      { text: 'The evidence records these appointments and the strike-off only; it says nothing about why the company was dissolved.', citations: ['E-062'], quotes: ['struck off the register'] },
     ],
   },
   {

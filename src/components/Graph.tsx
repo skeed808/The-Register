@@ -70,7 +70,7 @@ export function Graph({ bundle }: { bundle: EntityBundle }) {
               const e = bundle.entities[id];
               return { data: { id, label: e.name, kind: e.kind, dissolved: e.status === 'dissolved' ? 1 : 0, focal: id === bundle.entity.id ? 1 : 0 } };
             }),
-            ...rels.map((r) => ({ data: { id: r.id, source: r.from, target: r.to, label: `${r.label} · ${fmtDate(r.start)}${r.end ? ' to ' + fmtDate(r.end) : ''}` } })),
+            ...rels.map((r) => ({ data: { id: r.id, source: r.from, target: r.to, label: `${r.label} · ${r.dateBasis === 'notified' ? 'notified ' : ''}${fmtDate(r.start)}${r.end ? ' to ' + fmtDate(r.end) : ''}` } })),
           ],
           style: [
             { selector: 'node', style: { shape: 'rectangle', width: 8, height: 8, 'background-color': ink, label: 'data(label)', color: ink, 'font-family': sans, 'font-size': 13, 'text-halign': 'right', 'text-valign': 'center', 'text-margin-x': 8, 'text-wrap': 'wrap', 'text-max-width': '170px', 'text-background-color': ground, 'text-background-opacity': 1, 'text-background-padding': '2px' } },
@@ -122,8 +122,14 @@ export function Graph({ bundle }: { bundle: EntityBundle }) {
   const rows = bundle.evidence.filter((e) => evIds.has(e.id));
   const selName = selected?.kind === 'node' ? bundle.entities[selected.id]?.name : selRels[0] ? `${bundle.entities[selRels[0].from]?.name} and ${bundle.entities[selRels[0].to]?.name}` : '';
 
+  const incomplete = Object.entries(bundle.coverage ?? {}).filter(([k, c]) => !c.complete && k !== 'filings');
   return (
     <div className="graph-wrap">
+      {incomplete.length ? (
+        <p className="limit-note" role="note">
+          Not every relationship is shown: {incomplete.map(([k, c]) => `${k === 'pscs' ? 'persons with significant control' : k} ${c.retrieved}${c.total !== null ? ` of ${c.total}` : ' (total not reported)'}`).join('; ')} retrieved.
+        </p>
+      ) : null}
       <div className="spine-controls no-print">
         <button type="button" className="textlink" onClick={() => setAsList(!asList)}>{asList ? 'View as graph' : 'View as list'}</button>
         {failed ? <span className="state-line">The graph could not load here, so the list is shown.</span> : null}

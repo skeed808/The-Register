@@ -32,6 +32,8 @@ export interface SearchCandidate {
   matchReason: string;
   exact: boolean;
   mark: 'L' | 'C' | 'S';
+  /** For cached live results: minutes since the register produced the response, if known. */
+  ageMinutes?: number | null;
 }
 
 const district = (addr?: string) => addr?.match(/[A-Z]{1,2}\d[A-Z\d]?(?=\s*\d[A-Z]{2}$)/)?.[0];
