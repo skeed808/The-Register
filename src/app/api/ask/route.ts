@@ -1,10 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
-import { z } from 'zod';
-import { generateText, Output } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { evidence as caseEvidence, entities } from '@/data/demo-case';
-import { validate } from '@/lib/assistant/validate';
+import { answerQuestion } from '@/lib/assistant/answer';
 import { durableLimitsAvailable, hashIp, hit, LIMITS } from '@/lib/ratelimit';
 import { clientIp, trustedHopsFromEnv } from '@/lib/request-ip';
 
@@ -15,27 +13,6 @@ const names = Object.fromEntries(Object.values(entities).map((e) => [e.id, e.nam
 // (in that order); evidence-only context; structured output; server-side validation;
 // refusal if nothing survives.
 // UNTESTED against a live model in this build: needs ANTHROPIC_API_KEY.
-
-const schema = z.object({
-  sentences: z
-    .array(
-      z.object({
-        text: z.string().max(400),
-        citations: z.array(z.string()).min(1),
-        quotes: z.array(z.string().min(3)).min(1),
-      }),
-    )
-    .max(8),
-});
-
-const SYSTEM = `You answer questions about one research case using ONLY the evidence rows supplied.
-Rules:
-- Every sentence must cite one or more evidence ids from the rows, e.g. "E-026".
-- Every sentence must include at least one item in "quotes": an exact value you rely on (a name, a date, a status), copied from the value or excerpt of a cited row. Every cited row must supply at least one quote.
-- Only write dates and names that appear in the rows you cite.
-- If the rows do not answer the question, return an empty list of sentences.
-- Never characterise a person's conduct, motives or character. Never speculate about wrongdoing.
-- Describe differences between sources neutrally.`;
 
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { question?: string };
@@ -70,21 +47,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ limited: "Today's question budget is spent. The scripted questions still answer." });
   }
 
-  const rows = caseEvidence
-    .map((e) => `${e.id} | ${e.claim} | ${e.value} | effective ${e.effective ?? '-'} | recorded ${e.recorded ?? '-'} | ${e.excerpt ?? ''}`)
-    .join('\n');
-
-  try {
-    const { output } = await generateText({
-      model: anthropic(process.env.ASSISTANT_MODEL ?? 'claude-haiku-5-5'),
-      system: SYSTEM,
-      prompt: `Evidence rows:\n${rows}\n\nQuestion: ${question}`,
-      output: Output.object({ schema }),
-      maxOutputTokens: 900,
-    });
-    const answer = validate(output.sentences, caseEvidence, names);
-    return NextResponse.json({ answer, remaining: Math.max(0, LIMITS.askPerSession - used) });
-  } catch {
-    return NextResponse.json({ limited: 'The assistant could not answer just now. The scripted questions still answer.' });
+  const result = await answerQuestion(anthropic(process.env.ASSISTANT_MODEL ?? 'claude-haiku-5-5'), question, caseEvidence, names);
+  if (!result.ok) {
+    return NextResponse.json({ limited: 'The assistant could not answer just now. The scripted questions still answer.', reason: result.reason });
   }
+  return NextResponse.json({ answer: result.answer, remaining: Math.max(0, LIMITS.askPerSession - used) });
 }

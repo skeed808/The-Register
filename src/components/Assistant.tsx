@@ -51,7 +51,7 @@ export function Assistant({ bundle }: { bundle: EntityBundle }) {
 
   return (
     <div className="split">
-      <div className="left" aria-label="Case evidence">
+      <div className="left" role="region" aria-label="Case evidence" tabIndex={0}>
         {bundle.evidence.map((e) => (
           <div key={e.id} id={`c-${e.id}`} className={`compact-row${lit === e.id ? ' lit' : ''}`}>
             <span className="mono">{e.id}<br /><Mark mark={e.mark} /></span>

@@ -82,7 +82,7 @@ export function Frame({ children }: { children: ReactNode }) {
   return (
     <div className="frame">
       <header className="topbar">
-        <Link href="/" className="wordmark" aria-label="The Register, Day Book">
+        <Link href="/" className="wordmark">
           The Register<span>Mote Studios · prototype</span>
         </Link>
         <form className="commandbar" role="search" onSubmit={(e) => { e.preventDefault(); submit(q); }}>
@@ -103,9 +103,9 @@ export function Frame({ children }: { children: ReactNode }) {
       </header>
 
       {inDemo ? (
-        <div className="demo-banner" role="note">
+        <aside className="demo-banner" aria-label="Demonstration notice">
           <Mark mark="S" /> Fictional demonstration case. Every entry on this page is simulated; no real company or person is described.
-        </div>
+        </aside>
       ) : null}
 
       <nav className="rail" aria-label="Open folios">

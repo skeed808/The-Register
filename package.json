@@ -8,7 +8,9 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "build:preview": "bash scripts/build-preview.sh",
-    "test": "node --experimental-strip-types --no-warnings --import ./tests/register.mjs --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --no-warnings --import ./tests/register.mjs --test tests/*.test.ts",
+    "validate:live": "node --env-file=.env.local scripts/validate-live.mjs",
+    "db:setup": "node --env-file=.env.local scripts/db-setup.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "4.0.105",

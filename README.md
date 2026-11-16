@@ -30,6 +30,23 @@ Locally: `npm run build:preview`, then serve `out/` with any static server.
 The full server build (`npm run build` and `npm start`, with `.env.local`) is for running live mode on
 your own machine.
 
+## Live validation (Stage 5, run on your own machine)
+
+Never on the public deployment. This exercises the real Companies House API, cache behaviour,
+rate limits and (optionally) the live model.
+
+```bash
+cp .env.example .env.local        # add COMPANIES_HOUSE_API_KEY; optionally ANTHROPIC_API_KEY, DATABASE_URL
+npm run db:setup                  # only if DATABASE_URL is set: creates the rate_counters table
+npm run build && npm start        # full app on http://localhost:3000
+# second terminal:
+npm run validate:live             # add --with-model for the live assistant checks (a few pence)
+```
+
+It takes about two minutes (one deliberate 65-second wait to watch a result go from Live to
+Cached), prints PASS / FAIL / CHECK lines and writes `validation-report.json`. It never prints keys
+or officer names. CHECK lines are the few things a person has to confirm by eye.
+
 ## What is real and what is simulated
 
 | Area | State |
@@ -50,7 +67,7 @@ your own machine.
 npm test
 ```
 
-51 regression tests on Node's built-in runner (no extra dependencies): the confidence rubric,
+65 regression tests on Node's built-in runner (no extra dependencies): the confidence rubric,
 the citation validator (including genuine citations attached to false conclusions), Live versus
 Cached provenance, bounded pagination and its disclosure, Companies House date semantics, and
 client IP handling. `npm run build:preview` also runs a guard that fails the build if API routes,
