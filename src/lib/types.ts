@@ -19,6 +19,12 @@ export interface Source {
   /** Freshness window in hours: within it Fresh, within 4x Ageing, else Stale. */
   freshHours: number;
   licence?: string;
+  /** What this source's 'recorded' date means: reaching a register, or publication. */
+  recordedLabel?: 'Recorded' | 'Published';
+  /** For snapshots, the retrieval is the capture: the date the page was seen. */
+  retrievalIsCapture?: boolean;
+  /** A limitation the reader must see without expanding the row. */
+  limitation?: string;
 }
 
 export interface Entity {
@@ -60,6 +66,10 @@ export interface Evidence {
   status: 'current' | 'historical' | 'superseded';
   /** Dataset publication date, for I rows. */
   datasetDate?: string;
+  /** For historical rows: when it ended or was superseded. */
+  ended?: string;
+  /** 'notified' when the end date is the date the register was told, not when it happened. */
+  endBasis?: 'effective' | 'notified';
 }
 
 export type RelRole = 'director' | 'secretary' | 'member' | 'psc' | 'parent';

@@ -148,7 +148,7 @@ export function Dossier({ bundle }: { bundle: EntityBundle }) {
       <>
         <h2>Provenance appendix</h2>
         <table>
-          <thead><tr><th>Id</th><th>Mark</th><th>Source and folio</th><th>Effective</th><th>Recorded</th><th>Retrieved</th></tr></thead>
+          <thead><tr><th>Id</th><th>Mark</th><th>Source and folio</th><th>Effective</th><th>Recorded or published</th><th>Retrieved</th></tr></thead>
           <tbody>
             {ev.map((x) => (
               <tr key={x.id}>

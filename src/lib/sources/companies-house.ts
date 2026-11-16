@@ -152,7 +152,7 @@ export async function getLiveBundle(number: string): Promise<EntityBundle | null
     const evId = push({
       sourceId: 'ch', retrieved: officers.prov?.fetchedAt ?? clock, mark: officers.prov?.mark ?? 'L', factKey: `officer:${pid}`,
       claim: o.resigned_on ? 'Officer (resigned)' : 'Officer appointed', value: `${o.name}, ${role}`,
-      effective: o.appointed_on, status: o.resigned_on ? 'historical' : 'current',
+      effective: o.appointed_on, ended: o.resigned_on, endBasis: 'effective', status: o.resigned_on ? 'historical' : 'current',
       folio: `CH·officers·${number}·${i + 1}`, url: `${PUBLIC}/company/${number}/officers`,
     });
     relationships.push({
@@ -171,7 +171,7 @@ export async function getLiveBundle(number: string): Promise<EntityBundle | null
       sourceId: 'ch', retrieved: pscs.prov?.fetchedAt ?? clock, mark: pscs.prov?.mark ?? 'L', factKey: `psc:${pid}`,
       claim: s.ceased_on ? 'Person with significant control (ceased)' : 'Person with significant control',
       value: `${s.name}${control ? ': ' + control : ''}`,
-      effective: d.effective, recorded: d.recorded, status: s.ceased_on ? 'historical' : 'current',
+      effective: d.effective, recorded: d.recorded, ended: d.end, endBasis: 'notified', status: s.ceased_on ? 'historical' : 'current',
       excerpt: `Notified to Companies House on ${d.recorded ?? 'an unstated date'}${d.end ? `; cessation notified on ${d.end}` : ''}. The API does not give the date control began or ended.`,
       folio: `CH·psc·${number}·${i + 1}`, url: `${PUBLIC}/company/${number}/persons-with-significant-control`,
     });
