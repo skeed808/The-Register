@@ -1,0 +1,7 @@
+{
+  "buildCommand": "npm run build:preview",
+  "outputDirectory": "out",
+  "framework": null,
+  "cleanUrls": false,
+  "trailingSlash": true
+}
