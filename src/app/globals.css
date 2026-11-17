@@ -294,7 +294,7 @@ details > summary::-webkit-details-marker { display: none; }
   .daybook-intro .lead, .daybook-intro .actions { grid-column: 1 / 13; }
   .daybook-intro .actions { margin-top: 20px; }
   .ledger-margin { grid-column: 1 / 13; flex-direction: row; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
-  .margin-dates { flex-direction: row; flex-wrap: wrap; gap: 2px 12px; }
+  .margin-dates { display: contents; }
   .ledger-claim { margin-top: 4px; }
   .ledger-value { margin-top: 6px; }
   .ledger-band { margin-top: 6px; }

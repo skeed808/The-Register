@@ -26,11 +26,14 @@ export function Frame({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [density, setDensity] = useState<Density>('ledger');
   const [liveFolios, setLiveFolios] = useState<Folio[]>([]);
+  // WCAG 2.1.4: single-character shortcuts must be switchable off.
+  const [keysOn, setKeysOn] = useState(true);
 
   const currentId = path.match(/^\/e\/([^/]+)/)?.[1]?.toUpperCase();
   const inDemo = path === '/' || (currentId ? /^DM\d{6}$/.test(currentId) : false);
 
-  useEffect(() => { setDensity(store.get<Density>('reg.density', 'ledger')); setLiveFolios(store.get<Folio[]>('reg.folios', [])); }, []);
+  useEffect(() => { setDensity(store.get<Density>('reg.density', 'ledger')); setLiveFolios(store.get<Folio[]>('reg.folios', [])); setKeysOn(store.get<boolean>('reg.keys', true)); }, []);
+  useEffect(() => { store.set('reg.keys', keysOn); document.documentElement.dataset.keys = keysOn ? 'on' : 'off'; }, [keysOn]);
   useEffect(() => { document.documentElement.dataset.density = density; store.set('reg.density', density); }, [density]);
 
   // Remember live entities opened in this session as folios.
@@ -50,7 +53,9 @@ export function Frame({ children }: { children: ReactNode }) {
     function onKey(e: KeyboardEvent) {
       const t = e.target as HTMLElement;
       const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName);
-      if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) { e.preventDefault(); input.current?.focus(); return; }
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); input.current?.focus(); return; }
+      if (!keysOn) return;
+      if (e.key === '/' && !typing) { e.preventDefault(); input.current?.focus(); return; }
       if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
       if (currentId) {
         const go: Record<string, string> = { t: 'as-at', g: 'graph', c: 'contra', a: 'ask', d: 'dossier', e: '' };
@@ -120,7 +125,10 @@ export function Frame({ children }: { children: ReactNode }) {
             </li>
           ))}
         </ol>
-        <p className="rail-note">Keys: / search · j k rows · t as-at · c contra · g graph · a ask · d dossier · [ ] folios</p>
+        <p className="rail-note">
+          {keysOn ? 'Keys: / search · j k rows · t as-at · c contra · g graph · a ask · d dossier · [ ] folios. ' : 'Single-key shortcuts are off. Ctrl K still opens search. '}
+          <button type="button" className="textlink" onClick={() => setKeysOn(!keysOn)}>{keysOn ? 'Turn off single-key shortcuts' : 'Turn shortcuts on'}</button>
+        </p>
       </nav>
 
       <main>{children}</main>

@@ -60,6 +60,7 @@ export function EvidenceLedger({ bundle, rows, showFilters = true }: { bundle: E
     function onKey(ev: KeyboardEvent) {
       const t = ev.target as HTMLElement;
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)) return;
+      if (document.documentElement.dataset.keys === 'off') return;
       if (ev.key === 'j' || ev.key === 'k') {
         ev.preventDefault();
         const next = Math.min(shown.length - 1, Math.max(0, cursor + (ev.key === 'j' ? 1 : -1)));
@@ -92,18 +93,18 @@ export function EvidenceLedger({ bundle, rows, showFilters = true }: { bundle: E
           <span className="ledger-margin">
             <span className="margin-dates">
               {dates.map((d, i) => (
-                <span key={i} className={`mono${d.label ? ' dated' : ''}`}>{d.label ? <span className="quiet">{d.label} </span> : null}{d.date ? fmtDate(d.date) : '—'}</span>
+                <span key={i} className={`mono${d.label ? ' dated' : ''}`}>{d.label ? <span className="quiet">{d.label} </span> : <span className="sr-only">Effective </span>}{d.date ? fmtDate(d.date) : <><span aria-hidden="true">—</span><span className="sr-only">date not given</span></>}<span className="sr-only">. </span></span>
               ))}
             </span>
             <span><Mark mark={e.mark} extra={markExtra(e, bundle.clock)} />{contra ? <span className="contra-mark"> contra</span> : null}</span>
           </span>
           <span className="ledger-claim">
             {e.claim}
-            <span className="secondary-line">{src?.name} · <span className="mono">{e.id}</span></span>
+            <span className="secondary-line"><span className="sr-only">. Source: </span>{src?.name} · <span className="mono">{e.id}</span></span>
           </span>
-          <span className="ledger-value">{e.value}</span>
+          <span className="ledger-value"><span className="sr-only">. Value: </span>{e.value}<span className="sr-only">. Folio: </span></span>
           <span className="ledger-folio mono"><Folio folio={e.folio} /></span>
-          <span className={`ledger-band band-${a.band}`}>{a.band}</span>
+          <span className={`ledger-band band-${a.band}`}><span className="sr-only">Confidence: </span>{a.band}</span>
           {src?.limitation ? <span className="ledger-limitation"><strong>Limitation.</strong> {src.limitation}</span> : null}
         </button>
         {isOpen ? (
@@ -176,7 +177,7 @@ export function EvidenceLedger({ bundle, rows, showFilters = true }: { bundle: E
         {shown.length === 0 ? <p className="empty">No entries match these filters.</p> : null}
         {groups.map((g) => (
           <section key={g.key} aria-label={g.title}>
-            {groups.length > 1 ? <h3 className="ledger-group">{g.title}<span className="count">{g.rows.length}</span></h3> : null}
+            {groups.length > 1 ? <h3 className="ledger-group">{g.title}<span className="count"><span className="sr-only">, </span>{g.rows.length}<span className="sr-only"> {g.rows.length === 1 ? 'entry' : 'entries'}</span></span></h3> : null}
             {g.rows.map(renderRow)}
           </section>
         ))}

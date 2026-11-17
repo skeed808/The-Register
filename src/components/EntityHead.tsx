@@ -25,7 +25,7 @@ export function EntityHead({ bundle, active }: { bundle: EntityBundle; active: s
         {SECTIONS.map((s) => (
           <Link key={s.slug} href={`/e/${e.id}${s.slug ? '/' + s.slug : ''}`} aria-current={active === s.slug ? 'page' : undefined}>
             {s.label}
-            {s.slug === 'contra' && openContras ? <span className="count">{openContras}</span> : null}
+            {s.slug === 'contra' && openContras ? <span className="count"><span className="sr-only">, </span>{openContras}<span className="sr-only"> {openContras === 1 ? 'difference between sources' : 'differences between sources'}</span></span> : null}
           </Link>
         ))}
       </nav>
